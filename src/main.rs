@@ -196,6 +196,7 @@ fn main() -> Result<(), std::io::Error> {
         get_mouse_events();
 
         let mut holding_keys_to_release:Vec<u16> = Vec::new();
+        let mut mouse_movements:Vec<Steps> = Vec::new();
         for key in hold_keys_vector_steps.iter() {
             println!("{:?}", key.name);
             
@@ -207,6 +208,18 @@ fn main() -> Result<(), std::io::Error> {
                     holding_keys_to_release.push(key.code);
                 }else if key.code == 999 {
                     std::thread::sleep(std::time::Duration::from_secs(key.time.into()));
+                }else if key.code > 800 && key.code < 900 {
+                    println!("Mouse event");
+                    mouse_movements.push({
+                        Steps {
+                            name: key.name.to_string(),
+                            code: key.code,
+                            sentence: key.sentence.to_string(),
+                            held: key.held,
+                            r#loop: key.r#loop,
+                            time: key.time
+                        }
+                    })
                 }else if key.code == 998 {
                     // println!("{:?}", key.sentence.split_ascii_whitespace().into_iter());
                     // let keysData:Keys = serde_json::from_str(&keysBuffer).expect("Not found");
@@ -324,6 +337,19 @@ fn main() -> Result<(), std::io::Error> {
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(1000));
+        mouse_movements.iter().for_each(|f| {
+            if f.name.contains("move") {
+                let word_split = f.sentence.split(",");
+                let mut mouse_coords:[i32;2] = [0;2];
+                let mut count = 0;
+                for word in word_split {
+                    // println!("{:?}", &word);
+                    mouse_coords[count] = word.parse::<i32>().expect("Error");
+                    count += 1
+                };
+                send_mouse_input_message(mouse_coords[0],mouse_coords[1]); 
+            }
+        });
         for key in holding_keys_to_release.iter() {
             send_input_messages(*key, true, false);
         }
@@ -333,7 +359,7 @@ fn main() -> Result<(), std::io::Error> {
         let _ = GetWindowRect(current_window, &mut window_rect);
 
         println!("{:?}", window_rect);
-        send_mouse_input_message(); 
+        send_mouse_input_message(100,100); 
         let primary_monitor:HMONITOR = windows::Win32::Graphics::Gdi::MonitorFromWindow(GetDesktopWindow(),windows::Win32::Graphics::Gdi::MONITOR_DEFAULTTOPRIMARY);
         let mut display_device_struct:DISPLAY_DEVICEW = DISPLAY_DEVICEW {
             ..Default::default()
@@ -496,22 +522,23 @@ fn get_mouse_events() {
         println!("{:?}",&mouse_move_points);
     }
 }
-fn send_mouse_input_message() {
+fn send_mouse_input_message(x:i32, y:i32) {
     println!("MOUSE EVENT");
     unsafe {
-        let mut point_struct:POINT = POINT {
-            ..Default::default()
-        };
-        let _ = GetCursorPos(&mut point_struct);
-        println!("{:?}", point_struct);
+        // let mut point_struct:POINT = POINT {
+        //     x:x,
+        //     y:y
+        // };
+        // let _ = GetCursorPos(&mut point_struct);
+        // println!("{:?}", point_struct);
         let input_mouse_struct:INPUT = INPUT {
             r#type: INPUT_TYPE(0),
             Anonymous: INPUT_0 {
                 mi: MOUSEINPUT {
-                    dx: 0,
-                    dy: 0,
-                    mouseData: 0,
-                    dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_ABSOLUTE ,
+                    dx: x,
+                    dy: y,
+                    mouseData: WHEEL_DELTA,
+                    dwFlags: MOUSEEVENTF_MOVE | MOUSEEVENTF_VIRTUALDESK ,
                     time: 0,
                     dwExtraInfo: Default::default()
                 },
